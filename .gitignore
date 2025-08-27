@@ -1,0 +1,54 @@
+# Build artifacts
+*.o
+*.obj
+*.exe
+*.dll
+*.lib
+*.so
+*.a
+*.out
+*.bin
+build/
+bin/
+obj/
+Debug/
+Release/
+x64/
+Win32/
+cmake-build-*/
+out/
+
+# IDE-specific files
+.vscode/
+.idea/
+*.suo
+*.user
+*.ncb
+*.aps
+*.opendb
+*.log
+*.bak
+*.sdf
+*.ipch
+*.VC.db
+*.VC.opendb
+*.cache
+*.tlog
+*.vs/
+*.sln.docstates
+*.vcxproj.user
+*.vcxproj.filters
+
+# Operating System specific files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*~
+#*#
+.#*
+*.swp
+*.swo
+*.tmp
