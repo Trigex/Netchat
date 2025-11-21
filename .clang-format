@@ -1,0 +1,45 @@
+# Based on Google style, but with some modifications
+BasedOnStyle: Google
+
+# Indentation options
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# Brace wrapping styles
+BreakBeforeBraces: Allman
+BraceWrapping:
+  AfterClass: false
+  AfterControlStatement: false
+  AfterEnum: false
+  AfterFunction: false
+  AfterNamespace: true
+  AfterStruct: false
+  AfterUnion: false
+  BeforeCatch: false
+  BeforeElse: false
+  IndentBraces: true
+
+# Line length and breaking
+ColumnLimit: 100
+BinPackArguments: false
+BinPackParameters: false
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+AlwaysBreakBeforeMultilineStrings: false
+
+# Pointer and reference alignment
+PointerAlignment: Left
+
+# Spaces around operators
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+
+# Namespaces
+FixNamespaceComments: true
+NamespaceIndentation: None
+
+# Other miscellaneous options
+AlignTrailingComments: true
+ConstructorInitializerIndentWidth: 4
+SortIncludes: true

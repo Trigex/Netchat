@@ -1,6 +1,7 @@
 #include "Client.hpp"
-#include <thread>
+
 #include <print>
+#include <thread>
 
 // Helper function to trim leading/trailing whitespace (like \r\n from netcat)
 static std::string trim(const std::string &str)
@@ -18,9 +19,14 @@ static std::string trim(const std::string &str)
 extern volatile sig_atomic_t gSignalStatus;
 
 Client::Client(const std::string &host, const int port)
-    : m_Host(host), m_Port(port), m_Running(false),
-      m_UIDirty(true), m_BorderWindow(nullptr), m_OutputWindow(nullptr),
-      m_InputWindow(nullptr), m_ServerStream(nullptr)
+    : m_Host(host),
+      m_Port(port),
+      m_Running(false),
+      m_UIDirty(true),
+      m_BorderWindow(nullptr),
+      m_OutputWindow(nullptr),
+      m_InputWindow(nullptr),
+      m_ServerStream(nullptr)
 {
     initNcurses();
 }
@@ -76,10 +82,7 @@ void Client::run()
     cleanupNcurses();
 }
 
-void Client::stop()
-{
-    m_Running = false;
-}
+void Client::stop() { m_Running = false; }
 
 void Client::initNcurses()
 {
@@ -151,6 +154,7 @@ void Client::onClose(dyad_Event *e)
 {
     auto *client = static_cast<Client *>(e->udata);
     client->addMessage("Disconnected from server. Press any key to exit.");
+
     client->m_Running = false;
 }
 
@@ -193,8 +197,7 @@ void Client::handleInput(int ch)
         refresh();
         recreateWindows();
         m_UIDirty = true;
-    }
-    else if (ch == '\n' || ch == KEY_ENTER)
+    } else if (ch == '\n' || ch == KEY_ENTER)
     {
         sendMessage();
         m_UIDirty = true;

@@ -1,17 +1,20 @@
 #include "Server.hpp"
+
 #include <csignal>
-#include <iostream>
+#include <print>
 #include <ranges>
 #include <stdexcept>
+#include "dyad.h"
 
 extern volatile sig_atomic_t gSignalStatus;
 
 // Helper function to trim leading/trailing whitespace (like \r\n from netcat)
-static std::string trim(const std::string& str)
+static std::string trim(const std::string &str)
 {
     const std::string WHITESPACE = " \n\r\t\f\v";
     const size_t first = str.find_first_not_of(WHITESPACE);
-    if (std::string::npos == first) {
+    if (std::string::npos == first)
+    {
         return str;
     }
     const size_t last = str.find_last_not_of(WHITESPACE);
@@ -19,10 +22,12 @@ static std::string trim(const std::string& str)
 }
 
 // Check if a string is empty, not including control characters
-bool isEffectivelyEmpty(const std::string& str)
+bool isEffectivelyEmpty(const std::string &str)
 {
-    for (const char c : str) {
-        if (!std::iscntrl(static_cast<unsigned char>(c))) {
+    for (const char c : str)
+    {
+        if (!std::iscntrl(static_cast<unsigned char>(c)))
+        {
             // Found a non-control character, so the string is not effectively empty
             return false;
         }
@@ -32,26 +37,22 @@ bool isEffectivelyEmpty(const std::string& str)
 }
 
 /**
- * @brief Retrieve a pointer to a User from a dyad_Event (Function should only should be used in event handlers attached to a client dyad_Stream)
+ * @brief Retrieve a pointer to a User from a dyad_Event (Function should only should be used in
+ * event handlers attached to a client dyad_Stream)
  * @param event The event pointer passed by the event handler
  * @return Pointer to the User attached to that client stream
  */
-User* getUserFromEvent(const dyad_Event *event)
-{
-    return static_cast<User*>(event->udata);
-}
+User *getUserFromEvent(const dyad_Event *event) { return static_cast<User *>(event->udata); }
 
 /**
- * @brief Retrieve a pointer to a Server instance from a dyad_Event (Function should only should be used in event handlers attached to the server dyad_Stream)
+ * @brief Retrieve a pointer to a Server instance from a dyad_Event (Function should only should be
+ * used in event handlers attached to the server dyad_Stream)
  * @param event The event pointer passed by the event handler
  * @return Pointer to the Server attached to the server stream
  */
-Server* getServerFromEvent(const dyad_Event *event)
-{
-    return static_cast<Server*>(event->udata);
-}
+Server *getServerFromEvent(const dyad_Event *event) { return static_cast<Server *>(event->udata); }
 
-Server::Server(const int port) : m_Stream(nullptr), m_Port(port), m_Running(false) {m_Ids = 0;}
+Server::Server(const int port) : m_Stream(nullptr), m_Port(port), m_Running(false) { m_Ids = 0; }
 
 void Server::start()
 {
@@ -85,8 +86,9 @@ void Server::start()
     dyad_setUpdateTimeout(0.1);
 
     // Main event loop
-    /* Run server loop while more than 1 stream is active (including the server's stream), and while we haven't explicitly shut down the server (m_Running).
-     * It also depends on gSignalStatus, which is non 0 when a SIGINT is invoked (Ctrl +C), for graceful shutdown */
+    /* Run server loop while more than 1 stream is active (including the server's stream), and while
+     * we haven't explicitly shut down the server (m_Running). It also depends on gSignalStatus,
+     * which is non 0 when a SIGINT is invoked (Ctrl +C), for graceful shutdown */
     while (dyad_getStreamCount() > 0 && m_Running && gSignalStatus == 0)
     {
         // dyad_update() processes all pending network events.
@@ -106,24 +108,34 @@ void Server::stop()
 
 void Server::cleanup()
 {
-    // Free User pointer memory
-    for (const auto &val: m_Users | std::views::values)
+    // dyad shutdown does the networking cleanup work
+    dyad_shutdown();
+
+    // Free user memory
+    for (const auto &id : m_Users | std::views::keys)
     {
-        delete val;
+        try
+        {
+            // dyad_shutdown() will close the user's stream, and the event handler for that deletes
+            // the user pointer. So make sure we don't double free
+            if (const auto *user = m_Users.at(id); user != nullptr) delete m_Users.at(id);
+        }
+        catch (const std::out_of_range &e)
+        {
+            std::println(stderr, "Error freeing User memory: {}", e.what());
+        }
     }
 
     // Clear user list
     m_Users.clear();
-    // dyad shutdown does the networking cleanup work
-    dyad_shutdown();
 }
 
-User* Server::addUser(const std::string &nickname, const dyad_Event *event)
+User *Server::addUser(const std::string &nickname, const dyad_Event *event)
 {
-    auto* server = getServerFromEvent(event);
-    auto* user = new User{m_Ids++, dyad_getAddress(event->remote), nickname, event->remote, server};
+    auto *server = getServerFromEvent(event);
+    auto *user = new User{m_Ids++, dyad_getAddress(event->remote), nickname, event->remote, server};
     std::println("Adding user: {}", user->toString());
-    server->m_Users[user->id] = std::move(user);
+    server->m_Users[user->id] = user;
     return user;
 }
 
@@ -131,12 +143,13 @@ void Server::removeUser(const unsigned int id)
 {
     try
     {
-        auto* user = m_Users.at(id);
+        auto *user = m_Users.at(id);
         std::println("Removing user: {}", user->toString());
         dyad_end(user->userStream);
         delete user;
         m_Users.erase(id);
-    } catch (const std::out_of_range& e)
+    }
+    catch (const std::out_of_range &e)
     {
         std::println(stderr, "Error deleting User: {}", e.what());
     }
@@ -146,21 +159,23 @@ void Server::broadcast(const std::string &message)
 {
     const std::string formattedMsg = message + "\r\n";
 
-    for (const auto user: m_Users | std::views::values)
+    for (const auto user : m_Users | std::views::values)
     {
         if (!user) continue;
         if (dyad_getState(user->userStream) == DYAD_STATE_CONNECTED)
         {
-            if (!user->nick.empty()) // Only broadcast to users with nicknames
+            if (!user->nick.empty())  // Only broadcast to users with nicknames
             {
-                dyad_write(user->userStream, formattedMsg.c_str(), static_cast<int>(formattedMsg.length()));
+                dyad_write(user->userStream,
+                           formattedMsg.c_str(),
+                           static_cast<int>(formattedMsg.length()));
             }
         }
     }
 }
 
-// (Comment to make ReSharper stop bugging me about making event handler parameters const, they can't be!)
-// ReSharper disable CppParameterMayBeConstPtrOrRef
+// (Comment to make ReSharper stop bugging me about making event handler parameters const, they
+// can't be!) ReSharper disable CppParameterMayBeConstPtrOrRef
 #pragma region Static event handlers
 
 #pragma region Event handlers attached to Server stream
@@ -171,23 +186,19 @@ void Server::onAccept(dyad_Event *event)
     const auto server = getServerFromEvent(event);
 
     // Client connected
-    const char* clientIp = dyad_getAddress(event->remote);
+    const char *clientIp = dyad_getAddress(event->remote);
     std::println("[+] Client connected: {}:{}", clientIp, dyad_getPort(event->remote));
 
     // Create user for client
-    auto* user = server->addUser("", event);
+    auto *user = server->addUser("", event);
 
     // Add listeners to client's stream to handle its events
     dyad_addListener(event->remote, DYAD_EVENT_DATA, onData, user);
     dyad_addListener(event->remote, DYAD_EVENT_CLOSE, onClose, user);
-
     dyad_writef(event->remote, "Welcome to the chat! Please enter your nickname: ");
 }
 
-void Server::onError(dyad_Event *event)
-{
-    std::println(stderr, "Server error: {}", event->msg);
-}
+void Server::onError(dyad_Event *event) { std::println(stderr, "Server error: {}", event->msg); }
 
 #pragma endregion
 
@@ -195,7 +206,7 @@ void Server::onError(dyad_Event *event)
 
 void Server::onData(dyad_Event *event)
 {
-    auto* user = getUserFromEvent(event);
+    auto *user = getUserFromEvent(event);
     if (!user) return;
 
     const std::string recvData = trim(std::string(event->data, event->size));
@@ -205,28 +216,34 @@ void Server::onData(dyad_Event *event)
         // Nickname entry message
         user->nick = recvData;
 
-        std::println("Client {} (id: {}) set nickname to {}", dyad_getAddress(user->userStream), user->id, user->nick);
+        std::println("Client {} (id: {}) set nickname to {}",
+                     dyad_getAddress(user->userStream),
+                     user->id,
+                     user->nick);
         const std::string joinMsg = "'" + user->nick + "'" + " has joined the chat";
         user->server->broadcast(joinMsg);
-    } else // User already has nickname, so this should be a chat message
+    }
+    else  // User already has nickname, so this should be a chat message
     {
         if (!recvData.empty())
         {
             const std::string chatMsg = "[" + user->nick + "]: " + recvData;
             user->server->broadcast(chatMsg);
-        } else if (isEffectivelyEmpty(recvData))
+        }
+        else if (isEffectivelyEmpty(recvData))
         {
             const std::string errorMsg = "[Server] Please send non-blank messages!";
             dyad_write(user->userStream, errorMsg.c_str(), errorMsg.length());
         }
     }
 
-    std::println("Received data: {} (size: {})", trim(std::string(event->data, event->size)), event->size);
+    std::println(
+        "Received data: {} (size: {})", trim(std::string(event->data, event->size)), event->size);
 }
 
 void Server::onClose(dyad_Event *event)
 {
-    const auto* user = getUserFromEvent(event);
+    const auto *user = getUserFromEvent(event);
     user->server->removeUser(user->id);
     std::println("[-] Client disconnected");
 }
